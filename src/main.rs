@@ -1,8 +1,12 @@
+mod gfx;
+
 use anyhow::Result;
+use gfx::Context;
+use wgpu::Limits;
 use winit::{
     dpi::LogicalSize,
     event::*,
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
@@ -10,15 +14,23 @@ pub fn main() -> Result<()> {
     env_logger::init();
 
     let (event_loop, window) = make_window()?;
-    run(event_loop, window)?;
+    let context = pollster::block_on(Context::new(&window, Limits::default()))?;
+    run(event_loop, context)?;
 
     Ok(())
 }
 
-pub fn run(event_loop: EventLoop<()>, window: Window) -> Result<()> {
+pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
     event_loop.run(|event, elwt| match event {
-        Event::WindowEvent { window_id, event } if window_id == window.id() => {
-            handle_window_event(event, elwt);
+        Event::WindowEvent { window_id, event } if window_id == context.window.id() => {
+            if context.handle_window_event(&event, elwt) {
+                return;
+            }
+
+            if let WindowEvent::RedrawRequested = event {
+                render(&context);
+                context.window.request_redraw();
+            }
         }
         _ => (),
     })?;
@@ -38,8 +50,39 @@ fn make_window() -> Result<(EventLoop<()>, Window)> {
     Ok((event_loop, window))
 }
 
-fn handle_window_event(event: WindowEvent, elwt: &EventLoopWindowTarget<()>) {
-    if let WindowEvent::CloseRequested = event {
-        elwt.exit();
+fn render(context: &Context) {
+    let output = context.surface.get_current_texture().unwrap();
+    let view = output
+        .texture
+        .create_view(&wgpu::TextureViewDescriptor::default());
+    let mut encoder = context
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
+    {
+        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
     }
+
+    // submit will accept anything that implements IntoIter
+    context.queue.submit(std::iter::once(encoder.finish()));
+    output.present();
 }
