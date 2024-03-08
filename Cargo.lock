@@ -1501,6 +1501,7 @@ dependencies = [
  "log",
  "pollster",
  "rune",
+ "walkdir",
  "wgpu",
  "winit",
 ]

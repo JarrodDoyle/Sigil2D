@@ -43,7 +43,7 @@ impl<'w> Game<'w> {
             .build(&event_loop)?;
 
         let context = pollster::block_on(Context::new(Arc::new(window), Limits::default()))?;
-        let runtime = scripting::Runtime::new(&["frame_counter"])?;
+        let runtime = scripting::Runtime::new(&config.source_dir)?;
 
         Ok(Self {
             event_loop,
