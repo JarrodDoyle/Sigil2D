@@ -2,6 +2,8 @@ mod gfx;
 mod input;
 mod scripting;
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use gfx::Context;
 use input::Input;
@@ -18,7 +20,7 @@ pub fn main() -> Result<()> {
     env_logger::init();
 
     let (event_loop, window) = make_window()?;
-    let context = pollster::block_on(Context::new(&window, Limits::default()))?;
+    let context = pollster::block_on(Context::new(Arc::new(window), Limits::default()))?;
     run(event_loop, context)?;
 
     Ok(())

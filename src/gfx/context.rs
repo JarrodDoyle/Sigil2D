@@ -1,21 +1,24 @@
+use std::sync::Arc;
+
 use anyhow::Result;
+
 use winit::{
     dpi::PhysicalSize, event::WindowEvent, event_loop::EventLoopWindowTarget, window::Window,
 };
 
-pub struct Context<'w> {
-    pub window: &'w Window,
+pub struct Context<'window> {
+    pub window: Arc<Window>,
     pub instance: wgpu::Instance,
     pub size: PhysicalSize<u32>,
-    pub surface: wgpu::Surface<'w>,
+    pub surface: wgpu::Surface<'window>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 }
 
-impl<'w> Context<'w> {
-    pub async fn new(window: &'w Window, limits: wgpu::Limits) -> Result<Self> {
+impl<'window> Context<'window> {
+    pub async fn new(window: Arc<Window>, limits: wgpu::Limits) -> Result<Self> {
         log::info!("Initialising WGPU context...");
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN,
@@ -28,7 +31,7 @@ impl<'w> Context<'w> {
         // - A GPU device to draw to the surface
         // - A draw command queue
         log::info!("Initialising window surface...");
-        let surface = instance.create_surface(window)?;
+        let surface = instance.create_surface(window.clone())?;
 
         log::info!("Requesting GPU adapter...");
         let adapter = instance
