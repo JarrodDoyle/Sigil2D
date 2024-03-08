@@ -1,12 +1,15 @@
 mod gfx;
+mod input;
 
 use anyhow::Result;
 use gfx::Context;
+use input::Input;
 use wgpu::Limits;
 use winit::{
     dpi::LogicalSize,
     event::*,
     event_loop::{ControlFlow, EventLoop},
+    keyboard::KeyCode,
     window::{Window, WindowBuilder},
 };
 
@@ -21,18 +24,28 @@ pub fn main() -> Result<()> {
 }
 
 pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
-    event_loop.run(|event, elwt| match event {
-        Event::WindowEvent { window_id, event } if window_id == context.window.id() => {
-            if context.handle_window_event(&event, elwt) {
-                return;
-            }
+    let mut input = Input::new();
 
-            if let WindowEvent::RedrawRequested = event {
-                render(&context);
-                context.window.request_redraw();
+    event_loop.run(|event, elwt| {
+        match event {
+            Event::WindowEvent { window_id, event } if window_id == context.window.id() => {
+                if context.handle_window_event(&event, elwt) {
+                    return;
+                }
+
+                if let WindowEvent::RedrawRequested = event {
+                    render(&context);
+                    context.window.request_redraw();
+                }
+
+                input.update(&event);
             }
+            _ => (),
         }
-        _ => (),
+
+        if input.is_key_just_pressed(KeyCode::Escape) {
+            elwt.exit();
+        }
     })?;
 
     Ok(())
