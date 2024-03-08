@@ -2,16 +2,9 @@ mod gfx;
 mod input;
 mod scripting;
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use gfx::Context;
 use input::Input;
-use rune::{
-    runtime::Object,
-    termcolor::{ColorChoice, StandardStream},
-    Diagnostics, Source, Sources, Vm,
-};
 use wgpu::Limits;
 use winit::{
     dpi::LogicalSize,
@@ -32,27 +25,9 @@ pub fn main() -> Result<()> {
 }
 
 pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
-    // !HACK: Temporrary scripting engine setup
-    let source_dir = format!("{}/scripts", env!("CARGO_MANIFEST_DIR"));
-    let mut rune_context = rune::Context::with_default_modules()?;
-    rune_context.install(scripting::api::log::module()?)?;
+    let mut runtime = scripting::Runtime::new(&["frame_counter"])?;
 
-    let runtime = Arc::new(rune_context.runtime()?);
-    let mut sources = Sources::new();
-    sources.insert(Source::from_path(format!("{source_dir}/frame_counter.rn"))?)?;
-    sources.insert(Source::memory("pub fn add(a, b) { a + b }")?)?;
-    let mut diagnostics = Diagnostics::new();
-    let result = rune::prepare(&mut sources)
-        .with_context(&rune_context)
-        .with_diagnostics(&mut diagnostics)
-        .build();
-    if !diagnostics.is_empty() {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        diagnostics.emit(&mut writer, &sources)?;
-    }
-    let mut vm = Vm::new(runtime, Arc::new(result?));
-    let frame_counter = vm.call(["FrameCounter", "new"], ())?;
-
+    let frame_counter = runtime.vm.call(["FrameCounter", "new"], ())?;
     let mut input = Input::new();
 
     event_loop.run(|event, elwt| {
@@ -76,7 +51,9 @@ pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
             elwt.exit();
         }
 
-        vm.call(["FrameCounter", "update"], (&frame_counter,))
+        runtime
+            .vm
+            .call(["FrameCounter", "update"], (&frame_counter,))
             .unwrap();
     })?;
 
