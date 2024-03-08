@@ -23,17 +23,17 @@ impl Runtime {
         let mut diagnostics = Diagnostics::new();
 
         let (mut sources, source_paths) = Self::get_sources(source_dir)?;
-        let unit = rune::prepare(&mut sources)
+        let result = rune::prepare(&mut sources)
             .with_context(&context)
             .with_diagnostics(&mut diagnostics)
-            .build()?;
+            .build();
 
         if !diagnostics.is_empty() {
             let mut writer = StandardStream::stderr(ColorChoice::Always);
             diagnostics.emit(&mut writer, &sources)?;
         }
 
-        let vm = Vm::new(runtime, Arc::new(unit));
+        let vm = Vm::new(runtime, Arc::new(result?));
 
         Ok(Self {
             vm,
