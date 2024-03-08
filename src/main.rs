@@ -1,9 +1,15 @@
 mod gfx;
 mod input;
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use gfx::Context;
 use input::Input;
+use rune::{
+    termcolor::{ColorChoice, StandardStream},
+    Diagnostics, Source, Sources, Vm,
+};
 use wgpu::Limits;
 use winit::{
     dpi::LogicalSize,
@@ -24,6 +30,23 @@ pub fn main() -> Result<()> {
 }
 
 pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
+    // !HACK: Temporrary scripting engine setup
+    let rune_context = rune::Context::with_default_modules()?;
+    let runtime = Arc::new(rune_context.runtime()?);
+    let mut sources = Sources::new();
+    sources.insert(Source::memory("pub fn add(a, b) { a + b }")?)?;
+    let mut diagnostics = Diagnostics::new();
+    let result = rune::prepare(&mut sources)
+        .with_context(&rune_context)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+    if !diagnostics.is_empty() {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        diagnostics.emit(&mut writer, &sources)?;
+    }
+    let mut vm = Vm::new(runtime, Arc::new(result?));
+    let mut frame_count = 0;
+
     let mut input = Input::new();
 
     event_loop.run(|event, elwt| {
@@ -46,6 +69,10 @@ pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
         if input.is_key_just_pressed(KeyCode::Escape) {
             elwt.exit();
         }
+
+        let output = vm.call(["add"], (frame_count, 1i64)).unwrap();
+        frame_count = rune::from_value(output).unwrap();
+        log::info!("Frame: {frame_count}");
     })?;
 
     Ok(())
