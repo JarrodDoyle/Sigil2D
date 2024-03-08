@@ -7,6 +7,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use gfx::Context;
 use input::Input;
+use rune::{alloc::clone::TryClone, Vm};
 use wgpu::Limits;
 use winit::{
     dpi::LogicalSize,
@@ -16,48 +17,79 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+struct GameConfig {
+    source_dir: String,
+}
+
+impl Default for GameConfig {
+    fn default() -> Self {
+        Self {
+            source_dir: format!("{}/scripts", env!("CARGO_MANIFEST_DIR")),
+        }
+    }
+}
+
+struct Game<'w> {
+    event_loop: EventLoop<()>,
+    context: Context<'w>,
+    vm: Vm,
+    config: GameConfig,
+}
+
+impl<'w> Game<'w> {
+    fn new(config: GameConfig) -> Result<Self> {
+        let (event_loop, window) = make_window()?;
+        let context = pollster::block_on(Context::new(Arc::new(window), Limits::default()))?;
+        let runtime = scripting::Runtime::new(&["frame_counter"])?;
+
+        Ok(Self {
+            event_loop,
+            context,
+            vm: runtime.vm.try_clone()?,
+            config,
+        })
+    }
+
+    fn run(mut self) -> Result<()> {
+        let frame_counter = self.vm.call(["FrameCounter", "new"], ())?;
+        let mut input = Input::new();
+
+        self.event_loop.run(|event, elwt| {
+            match event {
+                Event::WindowEvent { window_id, event }
+                    if window_id == self.context.window.id() =>
+                {
+                    if self.context.handle_window_event(&event, elwt) {
+                        return;
+                    }
+
+                    if let WindowEvent::RedrawRequested = event {
+                        render(&self.context);
+                        self.context.window.request_redraw();
+                    }
+
+                    input.update(&event);
+                }
+                _ => (),
+            }
+
+            if input.is_key_just_pressed(KeyCode::Escape) {
+                elwt.exit();
+            }
+
+            self.vm
+                .call(["FrameCounter", "update"], (&frame_counter,))
+                .unwrap();
+        })?;
+
+        Ok(())
+    }
+}
+
 pub fn main() -> Result<()> {
     env_logger::init();
 
-    let (event_loop, window) = make_window()?;
-    let context = pollster::block_on(Context::new(Arc::new(window), Limits::default()))?;
-    run(event_loop, context)?;
-
-    Ok(())
-}
-
-pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
-    let mut runtime = scripting::Runtime::new(&["frame_counter"])?;
-
-    let frame_counter = runtime.vm.call(["FrameCounter", "new"], ())?;
-    let mut input = Input::new();
-
-    event_loop.run(|event, elwt| {
-        match event {
-            Event::WindowEvent { window_id, event } if window_id == context.window.id() => {
-                if context.handle_window_event(&event, elwt) {
-                    return;
-                }
-
-                if let WindowEvent::RedrawRequested = event {
-                    render(&context);
-                    context.window.request_redraw();
-                }
-
-                input.update(&event);
-            }
-            _ => (),
-        }
-
-        if input.is_key_just_pressed(KeyCode::Escape) {
-            elwt.exit();
-        }
-
-        runtime
-            .vm
-            .call(["FrameCounter", "update"], (&frame_counter,))
-            .unwrap();
-    })?;
+    Game::new(GameConfig::default())?.run()?;
 
     Ok(())
 }
