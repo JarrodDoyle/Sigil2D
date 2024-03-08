@@ -7,6 +7,7 @@ use anyhow::Result;
 use gfx::Context;
 use input::Input;
 use rune::{
+    runtime::Object,
     termcolor::{ColorChoice, StandardStream},
     Diagnostics, Source, Sources, Vm,
 };
@@ -31,9 +32,11 @@ pub fn main() -> Result<()> {
 
 pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
     // !HACK: Temporrary scripting engine setup
+    let source_dir = format!("{}/scripts", env!("CARGO_MANIFEST_DIR"));
     let rune_context = rune::Context::with_default_modules()?;
     let runtime = Arc::new(rune_context.runtime()?);
     let mut sources = Sources::new();
+    sources.insert(Source::from_path(format!("{source_dir}/frame_counter.rn"))?)?;
     sources.insert(Source::memory("pub fn add(a, b) { a + b }")?)?;
     let mut diagnostics = Diagnostics::new();
     let result = rune::prepare(&mut sources)
@@ -45,7 +48,7 @@ pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
         diagnostics.emit(&mut writer, &sources)?;
     }
     let mut vm = Vm::new(runtime, Arc::new(result?));
-    let mut frame_count = 0;
+    let frame_counter = vm.call(["FrameCounter", "new"], ())?;
 
     let mut input = Input::new();
 
@@ -70,9 +73,8 @@ pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
             elwt.exit();
         }
 
-        let output = vm.call(["add"], (frame_count, 1i64)).unwrap();
-        frame_count = rune::from_value(output).unwrap();
-        log::info!("Frame: {frame_count}");
+        vm.call(["FrameCounter", "update"], (&frame_counter,))
+            .unwrap();
     })?;
 
     Ok(())

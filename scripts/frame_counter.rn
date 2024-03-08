@@ -1,0 +1,14 @@
+pub struct FrameCounter {
+    frame,
+}
+
+impl FrameCounter {
+    pub fn new() {
+        return FrameCounter {frame: 0};
+    }
+
+    pub fn update(self) {
+        self.frame += 1;
+        println(`Frame: ${self.frame}`);
+    }
+}
