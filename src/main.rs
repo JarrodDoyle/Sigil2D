@@ -1,3 +1,4 @@
+mod api;
 mod gfx;
 mod input;
 
@@ -33,7 +34,9 @@ pub fn main() -> Result<()> {
 pub fn run(event_loop: EventLoop<()>, mut context: Context) -> Result<()> {
     // !HACK: Temporrary scripting engine setup
     let source_dir = format!("{}/scripts", env!("CARGO_MANIFEST_DIR"));
-    let rune_context = rune::Context::with_default_modules()?;
+    let mut rune_context = rune::Context::with_default_modules()?;
+    rune_context.install(api::log::module()?)?;
+
     let runtime = Arc::new(rune_context.runtime()?);
     let mut sources = Sources::new();
     sources.insert(Source::from_path(format!("{source_dir}/frame_counter.rn"))?)?;

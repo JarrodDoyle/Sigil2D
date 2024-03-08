@@ -9,6 +9,6 @@ impl FrameCounter {
 
     pub fn update(self) {
         self.frame += 1;
-        println(`Frame: ${self.frame}`);
+        log::info(`Frame: ${self.frame}`);
     }
 }
