@@ -7,7 +7,7 @@ use rune::{
 };
 use walkdir::WalkDir;
 
-use super::api;
+use super::modules;
 
 pub struct Runtime {
     pub vm: Vm,
@@ -17,7 +17,7 @@ pub struct Runtime {
 impl Runtime {
     pub fn new(source_dir: &str) -> Result<Self> {
         let mut context = Context::with_default_modules()?;
-        context.install(api::log::module()?)?;
+        context.install(modules::log::module()?)?;
 
         let runtime = Arc::new(context.runtime()?);
         let mut diagnostics = Diagnostics::new();

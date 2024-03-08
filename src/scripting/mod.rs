@@ -1,4 +1,4 @@
-pub mod api;
+pub mod modules;
 mod runtime;
 
 pub use runtime::Runtime;
